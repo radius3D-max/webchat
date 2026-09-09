@@ -1,18 +1,19 @@
 (function () {
 
+    /*
+     * =====================================================
+     * НАСТРОЙКИ
+     * =====================================================
+     */
+
     var messagesBox =
         document.getElementById('privateMessages');
 
     var userIdElement =
         document.getElementById('privateUserId');
 
-    /*
-     * =====================================================
-     * ЕСЛИ МЫ НА СТРАНИЦЕ БЕЗ ОТКРЫТОГО ДИАЛОГА
-     * =====================================================
-     */
-
     var targetUserId = 0;
+
 
     if (userIdElement) {
 
@@ -30,7 +31,7 @@
 
     /*
      * =====================================================
-     * ЭКРАНИРОВАНИЕ HTML
+     * HTML ESCAPE
      * =====================================================
      */
 
@@ -40,7 +41,8 @@
             document.createElement('div');
 
         div.textContent =
-            text === null || typeof text === 'undefined'
+            text === null ||
+            typeof text === 'undefined'
                 ? ''
                 : String(text);
 
@@ -81,7 +83,7 @@
 
     /*
      * =====================================================
-     * ОТОБРАЖЕНИЕ СООБЩЕНИЙ
+     * СООБЩЕНИЯ
      * =====================================================
      */
 
@@ -93,6 +95,7 @@
 
         var html = '';
 
+
         for (
             var i = 0;
             i < data.length;
@@ -103,36 +106,23 @@
                 data[i];
 
             var mine =
-                false;
-
-
-            if (window.currentUserId) {
-
-                mine =
-                    parseInt(
-                        msg.sender_id,
-                        10
-                    ) ===
-                    parseInt(
-                        window.currentUserId,
-                        10
-                    );
-
-            } else {
-
-                mine =
-                    parseInt(
-                        msg.sender_id,
-                        10
-                    ) !==
-                    targetUserId;
-
-            }
+                parseInt(
+                    msg.sender_id,
+                    10
+                ) ===
+                parseInt(
+                    window.currentUserId,
+                    10
+                );
 
 
             html +=
                 '<div class="pm ' +
-                (mine ? 'mine' : '') +
+                (
+                    mine
+                        ? 'mine'
+                        : ''
+                ) +
                 '">' +
 
                     '<div class="pm-bubble">' +
@@ -162,7 +152,7 @@
 
             html =
                 '<div class="empty">' +
-                'Начните диалог 👋' +
+                    'Начните диалог 👋' +
                 '</div>';
         }
 
@@ -174,13 +164,16 @@
 
     /*
      * =====================================================
-     * ЗАГРУЗКА ТЕКУЩЕГО ПРИВАТНОГО ДИАЛОГА
+     * ЗАГРУЗКА ТЕКУЩЕГО ДИАЛОГА
      * =====================================================
      */
 
     function loadPrivateMessages() {
 
-        if (!messagesBox || !targetUserId) {
+        if (
+            !messagesBox ||
+            !targetUserId
+        ) {
             return;
         }
 
@@ -199,7 +192,9 @@
         xhr.open(
             'GET',
             'api/get_private.php?user_id=' +
-            encodeURIComponent(targetUserId) +
+            encodeURIComponent(
+                targetUserId
+            ) +
             '&t=' +
             new Date().getTime(),
             true
@@ -210,9 +205,21 @@
             function () {
 
                 if (
-                    xhr.readyState !== 4 ||
+                    xhr.readyState !== 4
+                ) {
+                    return;
+                }
+
+
+                if (
                     xhr.status !== 200
                 ) {
+
+                    console.log(
+                        'Ошибка get_private.php:',
+                        xhr.status
+                    );
+
                     return;
                 }
 
@@ -230,35 +237,28 @@
                     }
 
 
-                    renderMessages(data);
+                    renderMessages(
+                        data
+                    );
 
-
-                    /*
-                     * Первая загрузка.
-                     */
 
                     if (firstLoad) {
 
                         messagesBox.scrollTop =
-                            0;
+                            messagesBox.scrollHeight;
 
                         firstLoad =
                             false;
 
                         /*
                          * После открытия диалога
-                         * обновляем список ЛС.
+                         * сразу обновляем список.
                          */
                         loadPrivateDialogs();
 
                         return;
                     }
 
-
-                    /*
-                     * Если пользователь был внизу —
-                     * остаёмся внизу.
-                     */
 
                     if (atBottom) {
 
@@ -272,16 +272,14 @@
 
 
                     /*
-                     * После прочтения обновляем
-                     * красные счётчики.
+                     * Обновляем счётчики.
                      */
-
                     loadPrivateDialogs();
 
                 } catch (e) {
 
                     console.log(
-                        'Ошибка ЛС:',
+                        'Ошибка обработки сообщений:',
                         e
                     );
 
@@ -297,14 +295,17 @@
 
     /*
      * =====================================================
-     * СОЗДАНИЕ HTML СПИСКА ДИАЛОГОВ
+     * РЕНДЕР СПИСКА ДИАЛОГОВ
      * =====================================================
      */
 
     function renderPrivateDialogs(data) {
 
         var usersContainer =
-            document.querySelector('.users');
+            document.querySelector(
+                '.users'
+            );
+
 
         if (!usersContainer) {
             return;
@@ -312,95 +313,64 @@
 
 
         /*
-         * Заголовок списка.
+         * Удаляем только элементы,
+         * которые созданы JavaScript.
          */
 
-        var title =
-            usersContainer.querySelector(
-                '.users-title'
-            );
-
-
-        /*
-         * Блок "Онлайн" сохраняем.
-         */
-
-        var onlineTitle =
-            null;
-
-        var allItems =
-            usersContainer.querySelectorAll(
-                '.user-item'
-            );
-
-
-        for (
-            var i = 0;
-            i < allItems.length;
-            i++
-        ) {
-
-            /*
-             * Первый блок user-item относится
-             * к диалогам.
-             *
-             * Онлайн-блоки будут добавляться ниже.
-             */
-
-        }
-
-
-        /*
-         * Удаляем только старые элементы диалогов.
-         *
-         * Они будут иметь специальный класс:
-         * private-dialog-item
-         */
-
-        var oldDialogs =
+        var oldItems =
             usersContainer.querySelectorAll(
                 '.private-dialog-item'
             );
 
 
         for (
-            var j = 0;
-            j < oldDialogs.length;
-            j++
+            var i = 0;
+            i < oldItems.length;
+            i++
         ) {
 
-            oldDialogs[j].parentNode.removeChild(
-                oldDialogs[j]
-            );
-
+            oldItems[i]
+                .parentNode
+                .removeChild(
+                    oldItems[i]
+                );
         }
 
 
         /*
-         * Находим место перед заголовком "🟢 Онлайн".
+         * Находим заголовок "Онлайн".
          */
-
-        var children =
-            usersContainer.children;
 
         var onlineHeader =
             null;
 
+        var children =
+            usersContainer.children;
+
 
         for (
-            var k = 0;
-            k < children.length;
-            k++
+            var j = 0;
+            j < children.length;
+            j++
         ) {
 
+            var text =
+                children[j]
+                    .textContent
+                    .replace(
+                        /\s/g,
+                        ''
+                    );
+
+
             if (
-                children[k].textContent
-                    .replace(/\s/g, '')
-                    .indexOf('🟢Онлайн') !== -1
+                text.indexOf(
+                    '🟢Онлайн'
+                ) !== -1
             ) {
 
                 onlineHeader =
-                    children[k];
+                    children[j];
 
                 break;
             }
@@ -411,45 +381,17 @@
          * Если диалогов нет.
          */
 
-        if (!data || !data.length) {
-
-            var empty =
-                document.createElement('div');
-
-            empty.className =
-                'private-dialog-item';
-
-            empty.style.padding =
-                '20px';
-
-            empty.style.color =
-                '#999';
-
-            empty.innerHTML =
-                'Пока нет диалогов.';
-
-
-            if (onlineHeader) {
-
-                usersContainer.insertBefore(
-                    empty,
-                    onlineHeader
-                );
-
-            } else {
-
-                usersContainer.appendChild(
-                    empty
-                );
-            }
+        if (
+            !data ||
+            !data.length
+        ) {
 
             return;
         }
 
 
         /*
-         * Создаём диалоги в порядке,
-         * который пришёл с сервера.
+         * Создаём список.
          */
 
         for (
@@ -463,11 +405,18 @@
 
 
             var item =
-                document.createElement('a');
+                document.createElement(
+                    'a'
+                );
+
 
             item.className =
                 'user-item private-dialog-item';
 
+
+            /*
+             * Активный диалог.
+             */
 
             if (
                 targetUserId &&
@@ -479,12 +428,14 @@
 
                 item.className +=
                     ' active';
-
             }
 
 
             /*
-             * Непрочитанные сообщения.
+             * Непрочитанные.
+             *
+             * Если этот диалог сейчас открыт,
+             * сообщения уже были помечены прочитанными.
              */
 
             if (
@@ -496,7 +447,6 @@
 
                 item.className +=
                     ' has-unread';
-
             }
 
 
@@ -508,11 +458,13 @@
 
 
             /*
-             * Онлайн.
+             * Индикатор онлайн.
              */
 
             var dot =
-                document.createElement('span');
+                document.createElement(
+                    'span'
+                );
 
             dot.className =
                 'dot';
@@ -522,7 +474,7 @@
                 dialog.last_activity
             ) {
 
-                var lastActivity =
+                var activity =
                     new Date(
                         String(
                             dialog.last_activity
@@ -532,12 +484,14 @@
                         )
                     );
 
+
                 var now =
                     new Date();
 
+
                 var diff =
                     now.getTime() -
-                    lastActivity.getTime();
+                    activity.getTime();
 
 
                 if (
@@ -547,12 +501,13 @@
 
                     dot.className +=
                         ' online';
-
                 }
             }
 
 
-            item.appendChild(dot);
+            item.appendChild(
+                dot
+            );
 
 
             /*
@@ -560,7 +515,9 @@
              */
 
             var info =
-                document.createElement('div');
+                document.createElement(
+                    'div'
+                );
 
             info.className =
                 'user-info';
@@ -571,10 +528,13 @@
              */
 
             var name =
-                document.createElement('div');
+                document.createElement(
+                    'div'
+                );
 
             name.className =
                 'user-name';
+
 
             name.appendChild(
                 document.createTextNode(
@@ -595,10 +555,13 @@
             ) {
 
                 var badge =
-                    document.createElement('span');
+                    document.createElement(
+                        'span'
+                    );
 
                 badge.className =
                     'unread-badge';
+
 
                 badge.appendChild(
                     document.createTextNode(
@@ -608,10 +571,10 @@
                     )
                 );
 
+
                 name.appendChild(
                     badge
                 );
-
             }
 
 
@@ -629,15 +592,19 @@
             ) {
 
                 var preview =
-                    document.createElement('div');
+                    document.createElement(
+                        'div'
+                    );
 
                 preview.className =
                     'dialog-preview';
+
 
                 var previewText =
                     String(
                         dialog.last_message
                     );
+
 
                 if (
                     previewText.length > 45
@@ -662,7 +629,6 @@
                 info.appendChild(
                     preview
                 );
-
             }
 
 
@@ -672,7 +638,7 @@
 
 
             /*
-             * Вставляем диалог перед блоком Онлайн.
+             * Вставляем перед блоком "Онлайн".
              */
 
             if (onlineHeader) {
@@ -688,15 +654,13 @@
                     item
                 );
             }
-
         }
-
     }
 
 
     /*
      * =====================================================
-     * ЗАГРУЗКА СПИСКА ЛИЧНЫХ ДИАЛОГОВ
+     * ЗАГРУЗКА СПИСКА ДИАЛОГОВ
      * =====================================================
      */
 
@@ -729,7 +693,7 @@
                 ) {
 
                     console.log(
-                        'Ошибка загрузки списка ЛС:',
+                        'Ошибка get_private_dialogs.php:',
                         xhr.status
                     );
 
@@ -752,90 +716,21 @@
                 } catch (e) {
 
                     console.log(
-                        'Ошибка списка ЛС:',
+                        'Ошибка списка диалогов:',
                         e
                     );
 
                 }
-
             };
 
 
         xhr.send();
-
     }
 
 
     /*
      * =====================================================
-     * ПЕРВАЯ ЗАГРУЗКА
-     * =====================================================
-     */
-
-    if (
-        messagesBox &&
-        targetUserId
-    ) {
-
-        loadPrivateMessages();
-
-    } else {
-
-        /*
-         * Если диалог ещё не выбран,
-         * всё равно загружаем список ЛС.
-         */
-
-        loadPrivateDialogs();
-
-    }
-
-
-    /*
-     * =====================================================
-     * АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ
-     * =====================================================
-     *
-     * Каждые 2 секунды:
-     *
-     * - сообщения текущего диалога;
-     * - список диалогов;
-     * - новые сообщения;
-     * - unread.
-     *
-     * =====================================================
-     */
-
-    setInterval(
-        function () {
-
-            loadPrivateDialogs();
-
-        },
-        2000
-    );
-
-
-    if (
-        messagesBox &&
-        targetUserId
-    ) {
-
-        setInterval(
-            function () {
-
-                loadPrivateMessages();
-
-            },
-            2000
-        );
-
-    }
-
-
-    /*
-     * =====================================================
-     * AJAX-ОТПРАВКА ПРИВАТНОГО СООБЩЕНИЯ
+     * ОТПРАВКА СООБЩЕНИЯ
      * =====================================================
      */
 
@@ -872,7 +767,6 @@
                 ) {
 
                     return;
-
                 }
 
 
@@ -885,17 +779,14 @@
                 }
 
 
-                var sendButton =
+                var button =
                     form.querySelector(
                         'button[type="submit"]'
                     );
 
 
-                if (sendButton) {
-
-                    sendButton.disabled =
-                        true;
-
+                if (button) {
+                    button.disabled = true;
                 }
 
 
@@ -922,9 +813,7 @@
                         if (
                             xhr.readyState !== 4
                         ) {
-
                             return;
-
                         }
 
 
@@ -937,16 +826,7 @@
                                 '';
 
 
-                            /*
-                             * Сразу обновляем сообщения.
-                             */
-
                             loadPrivateMessages();
-
-
-                            /*
-                             * И список диалогов.
-                             */
 
                             loadPrivateDialogs();
 
@@ -955,17 +835,12 @@
                             alert(
                                 'Не удалось отправить сообщение.'
                             );
-
                         }
 
 
-                        if (sendButton) {
-
-                            sendButton.disabled =
-                                false;
-
+                        if (button) {
+                            button.disabled = false;
                         }
-
                     };
 
 
@@ -983,7 +858,56 @@
             },
             false
         );
+    }
 
+
+    /*
+     * =====================================================
+     * ПЕРВЫЙ ЗАПУСК
+     * =====================================================
+     */
+
+    loadPrivateDialogs();
+
+
+    if (
+        messagesBox &&
+        targetUserId
+    ) {
+
+        loadPrivateMessages();
+    }
+
+
+    /*
+     * =====================================================
+     * АВТООБНОВЛЕНИЕ
+     * =====================================================
+     */
+
+    setInterval(
+        function () {
+
+            loadPrivateDialogs();
+
+        },
+        2000
+    );
+
+
+    if (
+        messagesBox &&
+        targetUserId
+    ) {
+
+        setInterval(
+            function () {
+
+                loadPrivateMessages();
+
+            },
+            2000
+        );
     }
 
 })();
