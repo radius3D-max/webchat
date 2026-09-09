@@ -1,4 +1,0 @@
-RewriteEngine On
-
-RewriteRule ^users/([A-Za-z0-9_-]+)/?$ users/profile.php?slug=$1 [L,QSA]
-RewriteRule ^news/([0-9]+)/?$ /news/?id=$1 [L,QSA]
