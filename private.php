@@ -85,39 +85,102 @@ if ($targetUser) {
 }
 
 /*
- * Получаем пользователей,
- * с которыми есть личная переписка.
+ * =========================================================
+ * ЛИЧНЫЕ ДИАЛОГИ
+ * =========================================================
+ *
+ * personal_messages содержит ссылки на сообщения
+ * из private_messages.
+ *
+ * Получаем:
+ * - собеседника;
+ * - последнее сообщение;
+ * - дату последнего сообщения;
+ * - количество непрочитанных сообщений.
  */
+
 $stmt = $pdo->prepare(
     'SELECT
         u.id,
         u.username,
-        u.last_activity
+        u.last_activity,
+
+        pm.message AS last_message,
+        pm.created_at AS last_message_time,
+
+        COALESCE(unread.unread_count, 0) AS unread_count
+
      FROM users u
-     INNER JOIN (
-        SELECT
-            CASE
-                WHEN sender_id = ? THEN receiver_id
-                ELSE sender_id
-            END AS user_id,
-            MAX(id) AS last_message_id
-        FROM private_messages
-        WHERE sender_id = ?
-           OR receiver_id = ?
-        GROUP BY user_id
-     ) pm ON pm.user_id = u.id
-     WHERE u.is_blocked = 0
-     ORDER BY pm.last_message_id DESC'
+
+     INNER JOIN
+     (
+         /*
+          * Находим последнее personal_message
+          * для каждого собеседника.
+          */
+         SELECT
+             CASE
+                 WHEN sender_id = ? THEN receiver_id
+                 ELSE sender_id
+             END AS user_id,
+
+             MAX(id) AS personal_message_id
+
+         FROM personal_messages
+
+         WHERE
+             sender_id = ?
+             OR receiver_id = ?
+
+         GROUP BY user_id
+
+     ) last_pm
+         ON last_pm.user_id = u.id
+
+     INNER JOIN personal_messages pmsg
+         ON pmsg.id = last_pm.personal_message_id
+
+     INNER JOIN private_messages pm
+         ON pm.id = pmsg.private_message_id
+
+     LEFT JOIN
+     (
+         /*
+          * Количество непрочитанных сообщений,
+          * адресованных текущему пользователю.
+          */
+         SELECT
+             sender_id,
+             COUNT(*) AS unread_count
+
+         FROM personal_messages
+
+         WHERE
+             receiver_id = ?
+             AND is_read = 0
+
+         GROUP BY sender_id
+
+     ) unread
+         ON unread.sender_id = u.id
+
+     WHERE
+         u.is_blocked = 0
+
+     ORDER BY
+         pmsg.id DESC'
 );
 
-$stmt->execute(array(
-    $myId,
-    $myId,
-    $myId
-));
+$stmt->execute(
+    array(
+        $myId,
+        $myId,
+        $myId,
+        $myId
+    )
+);
 
 $dialogs = $stmt->fetchAll();
-
 
 /*
  * Если выбран пользователь,
@@ -356,6 +419,20 @@ body {
     font-weight: 600;
 }
 
+.dialog-preview {
+    margin-top: 4px;
+    color: #888;
+    font-size: 11px;
+}
+
+.user-item.has-unread {
+    background: #f5f6ff;
+}
+
+.user-item.has-unread .user-name {
+    color: #667eea;
+    font-weight: bold;
+}
 
 /* DIALOG */
 
@@ -608,17 +685,62 @@ body {
 
             <div class="user-info">
 
-                <div class="user-name">
+               <div class="user-name">
+    <?php
+    echo htmlspecialchars(
+        $dialog['username'],
+        ENT_QUOTES,
+        'UTF-8'
+    );
+    ?>
 
-                    <?php
-                    echo htmlspecialchars(
-                        $dialog['username'],
-                        ENT_QUOTES,
-                        'UTF-8'
-                    );
-                    ?>
+    <?php if ((int) $dialog['unread_count'] > 0): ?>
 
-                </div>
+        <span
+            style="
+                display:inline-block;
+                min-width:20px;
+                padding:2px 6px;
+                margin-left:6px;
+                border-radius:10px;
+                background:#e74c3c;
+                color:#fff;
+                font-size:11px;
+                text-align:center;
+                vertical-align:middle;
+            "
+        >
+            <?php
+            echo (int) $dialog['unread_count'];
+            ?>
+        </span>
+
+    <?php endif; ?>
+</div>
+
+<?php if (!empty($dialog['last_message'])): ?>
+
+    <div
+        style="
+            margin-top:4px;
+            color:#888;
+            font-size:11px;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+            max-width:190px;
+        "
+    >
+        <?php
+        echo htmlspecialchars(
+            $dialog['last_message'],
+            ENT_QUOTES,
+            'UTF-8'
+        );
+        ?>
+    </div>
+
+<?php endif; ?>
 
             </div>
 
