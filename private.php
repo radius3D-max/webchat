@@ -662,13 +662,20 @@ body {
     <?php foreach ($dialogs as $dialog): ?>
 
         <a
-            class="user-item <?php
-                echo (
-                    $targetId == $dialog['id']
-                    ? 'active'
-                    : ''
-                );
-            ?>"
+class="user-item private-dialog-item <?php
+    echo (
+        $targetId == $dialog['id']
+        ? 'active'
+        : ''
+    );
+
+    if (
+        isset($dialog['unread_count']) &&
+        (int) $dialog['unread_count'] > 0
+    ) {
+        echo ' has-unread';
+    }
+?>"
             href="private.php?user_id=<?php
                 echo (int) $dialog['id'];
             ?>"
