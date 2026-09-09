@@ -3,6 +3,8 @@
 /*
  * =========================================================
  * api/send_private.php
+ * Отправка приватного сообщения
+ * PHP 5.6.4
  * =========================================================
  */
 
@@ -41,20 +43,21 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 
-$senderId =
-    currentUserId();
+/*
+ * =========================================================
+ * ДАННЫЕ
+ * =========================================================
+ */
 
+$senderId = currentUserId();
 
-$receiverId =
-    isset($_POST['receiver_id'])
-        ? (int) $_POST['receiver_id']
-        : 0;
+$receiverId = isset($_POST['receiver_id'])
+    ? (int) $_POST['receiver_id']
+    : 0;
 
-
-$message =
-    isset($_POST['message'])
-        ? trim($_POST['message'])
-        : '';
+$message = isset($_POST['message'])
+    ? trim($_POST['message'])
+    : '';
 
 
 /*
@@ -147,8 +150,7 @@ $stmt->execute(
     )
 );
 
-$receiver =
-    $stmt->fetch();
+$receiver = $stmt->fetch();
 
 
 if (!$receiver) {
@@ -207,47 +209,131 @@ if ($stmt->fetch()) {
 
 /*
  * =========================================================
- * СОХРАНЯЕМ ПРИВАТНОЕ СООБЩЕНИЕ
+ * ТРАНЗАКЦИЯ
  * =========================================================
  *
- * Используем только те поля,
- * которые реально существуют
- * в таблице private_messages.
+ * Сначала создаём сообщение в private_messages.
+ * Затем создаём запись в personal_messages.
+ *
+ * Если вторая операция не выполнится,
+ * первая также будет отменена.
  */
 
-$stmt = $pdo->prepare(
-    'INSERT INTO private_messages
-     (
-        sender_id,
-        receiver_id,
-        message,
-        is_read
-     )
-     VALUES
-     (
-        ?,
-        ?,
-        ?,
-        0
-     )'
-);
+try {
 
-$stmt->execute(
-    array(
-        $senderId,
-        $receiverId,
-        $message
-    )
-);
+    $pdo->beginTransaction();
 
 
-$messageId =
-    $pdo->lastInsertId();
+    /*
+     * -----------------------------------------------------
+     * 1. СОХРАНЯЕМ ПРИВАТНОЕ СООБЩЕНИЕ
+     * -----------------------------------------------------
+     */
+
+    $stmt = $pdo->prepare(
+        'INSERT INTO private_messages
+         (
+            sender_id,
+            receiver_id,
+            message,
+            is_read
+         )
+         VALUES
+         (
+            ?,
+            ?,
+            ?,
+            0
+         )'
+    );
+
+    $stmt->execute(
+        array(
+            $senderId,
+            $receiverId,
+            $message
+        )
+    );
+
+
+    $messageId = $pdo->lastInsertId();
+
+
+    /*
+     * -----------------------------------------------------
+     * 2. СОЗДАЁМ ЛИЧНОЕ СООБЩЕНИЕ / АРХИВ
+     * -----------------------------------------------------
+     *
+     * Здесь сам текст НЕ дублируется.
+     *
+     * personal_messages.private_message_id
+     * указывает на сообщение в private_messages.
+     */
+
+    $stmt = $pdo->prepare(
+        'INSERT INTO personal_messages
+         (
+            sender_id,
+            receiver_id,
+            private_message_id,
+            is_read,
+            created_at
+         )
+         VALUES
+         (
+            ?,
+            ?,
+            ?,
+            0,
+            NOW()
+         )'
+    );
+
+    $stmt->execute(
+        array(
+            $senderId,
+            $receiverId,
+            $messageId
+        )
+    );
+
+
+    /*
+     * -----------------------------------------------------
+     * ФИКСИРУЕМ ОБЕ ОПЕРАЦИИ
+     * -----------------------------------------------------
+     */
+
+    $pdo->commit();
+
+} catch (Exception $e) {
+
+    /*
+     * Если что-то пошло не так,
+     * отменяем изменения.
+     */
+
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+
+    http_response_code(500);
+
+    echo json_encode(
+        array(
+            'success' => false,
+            'error' => 'Не удалось сохранить сообщение.'
+        ),
+        JSON_UNESCAPED_UNICODE
+    );
+
+    exit;
+}
 
 
 /*
  * =========================================================
- * ПОЛУЧАЕМ СОЗДАННОЕ СООБЩЕНИЕ
+ * ПОЛУЧАЕМ СОХРАНЁННОЕ СООБЩЕНИЕ
  * =========================================================
  */
 
@@ -281,9 +367,7 @@ $stmt->execute(
     )
 );
 
-
-$savedMessage =
-    $stmt->fetch();
+$savedMessage = $stmt->fetch();
 
 
 /*
@@ -295,7 +379,8 @@ $savedMessage =
 echo json_encode(
     array(
         'success' => true,
-        'message' => $savedMessage
+        'message' => $savedMessage,
+        'personal_message_id' => $pdo->lastInsertId()
     ),
     JSON_UNESCAPED_UNICODE
 );
