@@ -299,6 +299,42 @@ body {
     height: 100%;
 }
 
+
+.unread-badge {
+    display: inline-block;
+    min-width: 20px;
+    height: 20px;
+    line-height: 20px;
+    margin-left: 7px;
+    padding: 0 6px;
+    border-radius: 10px;
+    background: #e74c3c;
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.user-item.has-unread {
+    background: #fff4f4;
+}
+
+.user-item.has-unread .user-name {
+    color: #e74c3c;
+    font-weight: bold;
+}
+
+.dialog-preview {
+    margin-top: 4px;
+    color: #888;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 190px;
+}
+
 body {
     font-family: Arial, Helvetica, sans-serif;
     background: #f3f4f8;
