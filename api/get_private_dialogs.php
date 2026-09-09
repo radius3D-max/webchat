@@ -4,7 +4,7 @@
  * =========================================================
  * api/get_private_dialogs.php
  *
- * Список приватных диалогов текущего пользователя.
+ * Список личных диалогов текущего пользователя.
  *
  * PHP 5.6.4
  * =========================================================
@@ -23,7 +23,7 @@ $myId = currentUserId();
 
 /*
  * =========================================================
- * ДИАЛОГИ
+ * ПОЛУЧАЕМ ПОСЛЕДНЕЕ СООБЩЕНИЕ КАЖДОГО ДИАЛОГА
  * =========================================================
  */
 
@@ -45,26 +45,39 @@ $stmt = $pdo->prepare(
      (
          SELECT
              CASE
-                 WHEN sender_id = ? THEN receiver_id
-                 ELSE sender_id
+                 WHEN pm1.sender_id = ? THEN pm1.receiver_id
+                 ELSE pm1.sender_id
              END AS user_id,
 
-             MAX(id) AS last_message_id
+             MAX(pm1.id) AS last_message_id
 
-         FROM private_messages
+         FROM private_messages pm1
 
          WHERE
-             sender_id = ?
-             OR receiver_id = ?
+             pm1.sender_id = ?
+             OR pm1.receiver_id = ?
 
          GROUP BY
              user_id
 
      ) last_dialog
+
          ON last_dialog.user_id = u.id
 
      INNER JOIN private_messages pm
-         ON pm.id = last_dialog.last_message_id
+
+         ON pm.id =
+            last_dialog.last_message_id
+
+
+     /*
+      * ====================================================
+      * НЕПРОЧИТАННЫЕ СООБЩЕНИЯ
+      *
+      * Считаем именно personal_messages.
+      * Это архив входящих ЛС.
+      * ====================================================
+      */
 
      LEFT JOIN
      (
@@ -72,7 +85,7 @@ $stmt = $pdo->prepare(
              sender_id,
              COUNT(*) AS unread_count
 
-         FROM private_messages
+         FROM personal_messages
 
          WHERE
              receiver_id = ?
@@ -82,14 +95,18 @@ $stmt = $pdo->prepare(
              sender_id
 
      ) unread
+
          ON unread.sender_id = u.id
+
 
      WHERE
          u.is_blocked = 0
 
+
      ORDER BY
          pm.id DESC'
 );
+
 
 $stmt->execute(
     array(
@@ -100,7 +117,9 @@ $stmt->execute(
     )
 );
 
-$dialogs = $stmt->fetchAll();
+
+$dialogs =
+    $stmt->fetchAll();
 
 
 /*
@@ -109,33 +128,45 @@ $dialogs = $stmt->fetchAll();
  * =========================================================
  */
 
-$result = array();
+$result =
+    array();
 
-foreach ($dialogs as $dialog) {
 
-    $result[] = array(
-        'id' => (int) $dialog['id'],
-        'username' => $dialog['username'],
-        'last_activity' => $dialog['last_activity'],
+foreach (
+    $dialogs
+    as $dialog
+) {
 
-        'last_message_id' =>
-            (int) $dialog['last_message_id'],
+    $result[] =
+        array(
 
-        'last_message' =>
-            $dialog['last_message'],
+            'id' =>
+                (int) $dialog['id'],
 
-        'last_message_time' =>
-            $dialog['last_message_time'],
+            'username' =>
+                $dialog['username'],
 
-        'unread_count' =>
-            (int) $dialog['unread_count']
-    );
+            'last_activity' =>
+                $dialog['last_activity'],
+
+            'last_message_id' =>
+                (int) $dialog['last_message_id'],
+
+            'last_message' =>
+                $dialog['last_message'],
+
+            'last_message_time' =>
+                $dialog['last_message_time'],
+
+            'unread_count' =>
+                (int) $dialog['unread_count']
+        );
 }
 
 
 /*
  * =========================================================
- * ОТВЕТ
+ * JSON
  * =========================================================
  */
 
