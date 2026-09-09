@@ -14,9 +14,22 @@ $currentUser=$stmt->fetch();
 if(!$currentUser){header('Location: logout.php');exit;}
 $stmt=$pdo->query('SELECT u.id,u.username,c.name AS city_name,cat.name AS category_name FROM users u LEFT JOIN cities c ON c.id=u.city_id LEFT JOIN categories cat ON cat.id=u.category_id WHERE u.is_blocked=0 AND u.last_activity>=DATE_SUB(NOW(), INTERVAL 5 MINUTE) ORDER BY u.username ASC');
 $onlineUsers=$stmt->fetchAll();
-$stmt=$pdo->query('SELECT m.id,m.message,m.created_at,m.user_id,m.receiver_id,sender.username AS sender_username,receiver.username AS receiver_username FROM messages m INNER JOIN users sender ON sender.id=m.user_id LEFT JOIN users receiver ON receiver.id=m.receiver_id WHERE m.receiver_id IS NULL OR m.receiver_id IS NOT NULL ORDER BY m.id DESC LIMIT 50');
+$stmt = $pdo->query(
+    'SELECT
+        m.id,
+        m.message,
+        m.created_at,
+        m.user_id,
+        m.receiver_id,
+        sender.username AS sender_username
+     FROM messages m
+     INNER JOIN users sender
+     ON sender.id = m.user_id
+     WHERE m.receiver_id IS NULL
+     ORDER BY m.id DESC
+     LIMIT 50'
+);
 $messages=$stmt->fetchAll();
-$messages=array_reverse($messages);
 ?>
 <!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Kupitetut — Общий чат</title><style>
 *{box-sizing:border-box}
