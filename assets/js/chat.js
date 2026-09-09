@@ -1,1 +1,481 @@
-(function(){var messagesBox=document.getElementById('messages'),messageForm=document.getElementById('messageForm'),messageInput=document.getElementById('messageInput'),receiverInput=document.getElementById('privateReceiverId'),privateSendButton=document.getElementById('privateSendButton'),publicSendButton=document.getElementById('publicSendButton');if(!messagesBox)return;var currentUserIdElement=document.getElementById('currentUserId'),currentUserId=0;if(currentUserIdElement)currentUserId=parseInt(currentUserIdElement.value,10);var lastMessageId=0,existingMessages=messagesBox.querySelectorAll('.message');if(existingMessages.length>0){var last=existingMessages[existingMessages.length-1],lastId=last.getAttribute('data-id');if(lastId)lastMessageId=parseInt(lastId,10)}var loadingMessages=false;function escapeHtml(text){var div=document.createElement('div');div.textContent=text==null?'':String(text);return div.innerHTML}function formatMessageTime(createdAt){if(!createdAt)return'';var value=String(createdAt),match=value.match(/(\d{2}):(\d{2})(?::\d{2})?$/);return match?match[1]+':'+match[2]:''}function appendMessage(msg){var messageId=parseInt(msg.id,10),senderId=parseInt(msg.user_id,10),receiverId=parseInt(msg.receiver_id||0,10);if(messagesBox.querySelector('.message[data-id="'+messageId+'"]'))return;var senderUsername=escapeHtml(msg.sender_username||''),receiverUsername=escapeHtml(msg.receiver_username||''),messageTime=formatMessageTime(msg.created_at),classes='message';if(senderId===currentUserId)classes+=' message-mine';if(receiverId>0&&receiverId===currentUserId)classes+=' message-addressed-to-me';var receiverHtml='';if(receiverId>0)receiverHtml='<span class="message-arrow">-->>></span><span class="message-recipient private-user-select" data-user-id="'+receiverId+'" data-username="'+receiverUsername+'" role="button" tabindex="0">'+receiverUsername+'</span>';var messageText=String(msg.message||'').replace(/\s*\r?\n\s*/g,' '),html='<div class="'+escapeHtml(classes)+'" data-id="'+messageId+'" data-user-id="'+senderId+'" data-receiver-id="'+receiverId+'><span class="message-time">'+escapeHtml(messageTime)+'</span><span class="message-header"><span class="message-user private-user-select" data-user-id="'+senderId+'" data-username="'+senderUsername+'" role="button" tabindex="0">'+senderUsername+'</span>'+receiverHtml+'<span>:</span></span><span class="message-text">'+escapeHtml(messageText)+'</span></div>';messagesBox.insertAdjacentHTML('beforeend',html);if(messageId>lastMessageId)lastMessageId=messageId}function loadMessages(){if(loadingMessages)return;loadingMessages=true;var xhr=new XMLHttpRequest(),timeout=setTimeout(function(){if(xhr.readyState!==4){xhr.abort();loadingMessages=false}},10000);xhr.open('GET','api/get_messages.php?after_id='+encodeURIComponent(lastMessageId)+'&t='+new Date().getTime(),true);xhr.onreadystatechange=function(){if(xhr.readyState!==4)return;clearTimeout(timeout);loadingMessages=false;if(xhr.status!==200)return;try{var data=JSON.parse(xhr.responseText);if(!data||!data.length)return;var wasAtBottom=messagesBox.scrollTop+messagesBox.clientHeight>=messagesBox.scrollHeight-80;for(var i=0;i<data.length;i++)appendMessage(data[i]);if(wasAtBottom)messagesBox.scrollTop=messagesBox.scrollHeight}catch(e){console.log('Ошибка JSON:',e)}};xhr.onerror=function(){clearTimeout(timeout);loadingMessages=false;console.log('Ошибка сети при получении сообщений.')};xhr.ontimeout=function(){clearTimeout(timeout);loadingMessages=false;console.log('Таймаут получения сообщений.')};xhr.send()}document.addEventListener('click',function(event){var target=event.target;if(!target.closest)return;var privateUser=target.closest('.private-user-select');if(!privateUser)return;event.preventDefault();event.stopPropagation();var userId=parseInt(privateUser.getAttribute('data-user-id'),10),username=privateUser.getAttribute('data-username');if(!userId||userId<=0)return;if(receiverInput)receiverInput.value=userId;if(messageInput){messageInput.value='';messageInput.placeholder='Приватное сообщение для '+username+'...';messageInput.focus()}console.log('Выбран получатель:',username,userId)},false);function sendMessage(receiverId){if(!messageInput)return;var message=messageInput.value.trim();if(!message)return;if(messageInput.getAttribute('data-sending')==='1')return;messageInput.setAttribute('data-sending','1');var xhr=new XMLHttpRequest();xhr.open('POST','api/send_message.php',true);xhr.setRequestHeader('Content-Type','application/x-www-form-urlencoded; charset=UTF-8');xhr.onreadystatechange=function(){if(xhr.readyState!==4)return;messageInput.removeAttribute('data-sending');if(xhr.status<200||xhr.status>=300){alert('Не удалось отправить сообщение.');return}try{var result=JSON.parse(xhr.responseText);if(!result||result.success!==true){alert(result&&result.error?result.error:'Не удалось отправить сообщение.');return}messageInput.value='';if(receiverInput)receiverInput.value='';messageInput.placeholder='Напишите сообщение...';messageInput.focus();loadMessages()}catch(e){console.log('Ошибка ответа send_message.php:',e);alert('Сервер вернул некорректный ответ.')}};var postData='message='+encodeURIComponent(message);if(receiverId&&parseInt(receiverId,10)>0)postData+='&private_receiver_id='+encodeURIComponent(receiverId);xhr.send(postData)}if(messageForm)messageForm.addEventListener('submit',function(event){event.preventDefault();sendMessage(0)},false);if(privateSendButton)privateSendButton.addEventListener('click',function(){var receiverId=receiverInput?parseInt(receiverInput.value,10):0;if(!receiverId||receiverId<=0){alert('Сначала нажмите на ник пользователя.');return}sendMessage(receiverId)},false);loadMessages();setInterval(loadMessages,3000)})();
+(function () {
+
+    var messagesBox = document.getElementById('messages');
+    var messageForm = document.getElementById('messageForm');
+    var messageInput = document.getElementById('messageInput');
+    var receiverInput = document.getElementById('privateReceiverId');
+
+    if (!messagesBox) {
+        return;
+    }
+
+    var currentUserIdElement =
+        document.getElementById('currentUserId');
+
+    var currentUserId = 0;
+
+    if (currentUserIdElement) {
+        currentUserId =
+            parseInt(currentUserIdElement.value, 10) || 0;
+    }
+
+    var lastMessageId = 0;
+
+    var existingMessages =
+        messagesBox.querySelectorAll('.message');
+
+if(existingMessages.length>0){
+    var first=existingMessages[0],
+        firstId=first.getAttribute('data-id');
+
+    if(firstId)
+        lastMessageId=parseInt(firstId,10);
+}
+    }
+
+
+    /*
+     * =========================================================
+     * HTML ESCAPE
+     * =========================================================
+     */
+
+    function escapeHtml(text) {
+
+        var div =
+            document.createElement('div');
+
+        div.textContent =
+            text == null ? '' : String(text);
+
+        return div.innerHTML;
+    }
+
+
+    /*
+     * =========================================================
+     * ВРЕМЯ
+     * =========================================================
+     */
+
+    function formatMessageTime(createdAt) {
+
+        if (!createdAt) {
+            return '';
+        }
+
+        var value =
+            String(createdAt);
+
+        var match =
+            value.match(
+                /(\d{2}):(\d{2})(?::\d{2})?$/
+            );
+
+        if (match) {
+            return match[1] + ':' + match[2];
+        }
+
+        return '';
+    }
+
+
+    /*
+     * =========================================================
+     * ЕДИНЫЙ ШАБЛОН ПУБЛИЧНОГО СООБЩЕНИЯ
+     * =========================================================
+     */
+
+    function createMessageHtml(message) {
+
+        var messageId =
+            parseInt(message.id, 10) || 0;
+
+        var senderId =
+            parseInt(message.user_id, 10) || 0;
+
+        var senderUsername =
+            message.sender_username ||
+            message.username ||
+            'Пользователь';
+
+        var messageTime =
+            formatMessageTime(
+                message.created_at
+            );
+
+        var messageText =
+            String(message.message || '')
+                .replace(/\s*\r?\n\s*/g, ' ');
+
+        var classes =
+            'message';
+
+        if (senderId === currentUserId) {
+            classes += ' message-mine';
+        }
+
+
+        return (
+            '<div class="' +
+                escapeHtml(classes) +
+                '"' +
+                ' data-id="' +
+                messageId +
+                '"' +
+                ' data-user-id="' +
+                senderId +
+                '">' +
+
+                '<span class="message-time">' +
+                    escapeHtml(messageTime) +
+                '</span>' +
+
+                '<span class="message-header">' +
+
+                    '<span ' +
+                        'class="message-user private-user-select" ' +
+                        'data-user-id="' +
+                            senderId +
+                        '" ' +
+                        'data-username="' +
+                            escapeHtml(senderUsername) +
+                        '" ' +
+                        'role="button" ' +
+                        'tabindex="0">' +
+
+                        escapeHtml(senderUsername) +
+
+                    '</span>' +
+
+                    '<span>:</span>' +
+
+                '</span>' +
+
+                '<span class="message-text">' +
+                    escapeHtml(messageText) +
+                '</span>' +
+
+            '</div>'
+        );
+    }
+
+
+    /*
+     * =========================================================
+     * ДОБАВЛЕНИЕ СООБЩЕНИЯ
+     * =========================================================
+     */
+
+    function appendMessage(message) {
+
+        var messageId =
+            parseInt(message.id, 10) || 0;
+
+        if (!messageId) {
+            return;
+        }
+
+        if (
+            messagesBox.querySelector(
+                '.message[data-id="' +
+                messageId +
+                '"]'
+            )
+        ) {
+            return;
+        }
+
+        var html =
+            createMessageHtml(message);
+
+        messagesBox.insertAdjacentHTML(
+            'afterbegin',
+            html
+        );
+
+        if (messageId > lastMessageId) {
+            lastMessageId = messageId;
+        }
+    }
+
+
+    /*
+     * =========================================================
+     * ЗАГРУЗКА ПУБЛИЧНЫХ СООБЩЕНИЙ
+     * =========================================================
+     */
+
+    var loadingMessages = false;
+
+    function loadMessages() {
+
+        if (loadingMessages) {
+            return;
+        }
+
+        loadingMessages = true;
+
+        var xhr =
+            new XMLHttpRequest();
+
+        var url =
+            'api/get_messages.php' +
+            '?after_id=' +
+            encodeURIComponent(lastMessageId) +
+            '&t=' +
+            new Date().getTime();
+
+        xhr.open(
+            'GET',
+            url,
+            true
+        );
+
+        xhr.onreadystatechange =
+            function () {
+
+                if (xhr.readyState !== 4) {
+                    return;
+                }
+
+                loadingMessages = false;
+
+                if (
+                    xhr.status < 200 ||
+                    xhr.status >= 300
+                ) {
+                    return;
+                }
+
+                try {
+
+                    var data =
+                        JSON.parse(
+                            xhr.responseText
+                        );
+
+                    if (
+                        !data ||
+                        !data.length
+                    ) {
+                        return;
+                    }
+
+                    var wasAtBottom =
+                        messagesBox.scrollTop +
+                        messagesBox.clientHeight >=
+                        messagesBox.scrollHeight - 80;
+
+
+                    for (
+                        var i = 0;
+                        i < data.length;
+                        i++
+                    ) {
+
+                        appendMessage(
+                            data[i]
+                        );
+                    }
+
+
+                    if (wasAtBottom) {
+
+                        messagesBox.scrollTop =
+                            messagesBox.scrollHeight;
+                    }
+
+                } catch (error) {
+
+                    console.log(
+                        'Ошибка JSON:',
+                        error
+                    );
+                }
+            };
+
+
+        xhr.onerror =
+            function () {
+
+                loadingMessages = false;
+
+                console.log(
+                    'Ошибка сети при получении сообщений.'
+                );
+            };
+
+
+        xhr.send();
+    }
+
+
+    /*
+     * =========================================================
+     * ОТПРАВКА ТОЛЬКО ПУБЛИЧНОГО СООБЩЕНИЯ
+     * =========================================================
+     */
+
+    if (messageForm) {
+
+        messageForm.addEventListener(
+            'submit',
+            function (event) {
+
+                event.preventDefault();
+
+                if (!messageInput) {
+                    return;
+                }
+
+                var message =
+                    messageInput.value.trim();
+
+                if (!message) {
+                    return;
+                }
+
+                if (
+                    messageInput.getAttribute(
+                        'data-sending'
+                    ) === '1'
+                ) {
+                    return;
+                }
+
+                /*
+                 * При отправке в общий чат
+                 * получатель всегда сбрасывается.
+                 */
+
+                if (receiverInput) {
+                    receiverInput.value = '';
+                }
+
+                messageInput.setAttribute(
+                    'data-sending',
+                    '1'
+                );
+
+                var xhr =
+                    new XMLHttpRequest();
+
+                xhr.open(
+                    'POST',
+                    'api/send_public.php',
+                    true
+                );
+
+                xhr.setRequestHeader(
+                    'Content-Type',
+                    'application/x-www-form-urlencoded; charset=UTF-8'
+                );
+
+
+                xhr.onreadystatechange =
+                    function () {
+
+                        if (
+                            xhr.readyState !== 4
+                        ) {
+                            return;
+                        }
+
+                        messageInput.removeAttribute(
+                            'data-sending'
+                        );
+
+
+                        if (
+                            xhr.status < 200 ||
+                            xhr.status >= 300
+                        ) {
+
+                            alert(
+                                'Не удалось отправить сообщение.'
+                            );
+
+                            return;
+                        }
+
+
+                        try {
+
+                            var result =
+                                JSON.parse(
+                                    xhr.responseText
+                                );
+
+
+                            if (
+                                !result ||
+                                result.success !== true
+                            ) {
+
+                                alert(
+                                    result &&
+                                    result.error
+                                        ? result.error
+                                        : 'Не удалось отправить сообщение.'
+                                );
+
+                                return;
+                            }
+
+
+                            messageInput.value = '';
+
+                            messageInput.placeholder =
+                                'Напишите сообщение...';
+
+                            messageInput.focus();
+
+                            loadMessages();
+
+                        } catch (error) {
+
+                            console.log(
+                                'Ошибка ответа send_public.php:',
+                                error
+                            );
+
+                            alert(
+                                'Сервер вернул некорректный ответ.'
+                            );
+                        }
+                    };
+
+
+                xhr.send(
+                    'message=' +
+                    encodeURIComponent(message)
+                );
+
+            },
+            false
+        );
+    }
+
+
+    /*
+     * =========================================================
+     * ПЕРВИЧНАЯ ЗАГРУЗКА
+     * =========================================================
+     */
+
+    loadMessages();
+
+
+    /*
+     * =========================================================
+     * AJAX ОБНОВЛЕНИЕ
+     * =========================================================
+     */
+
+    setInterval(
+        loadMessages,
+        3000
+    );
+
+})();
