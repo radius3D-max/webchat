@@ -4,7 +4,7 @@
  * =========================================================
  * api/get_private_dialogs.php
  *
- * Получение списка личных диалогов текущего пользователя.
+ * Список приватных диалогов текущего пользователя.
  *
  * PHP 5.6.4
  * =========================================================
@@ -23,7 +23,7 @@ $myId = currentUserId();
 
 /*
  * =========================================================
- * ПОСЛЕДНИЙ ДИАЛОГ С КАЖДЫМ ПОЛЬЗОВАТЕЛЕМ
+ * ДИАЛОГИ
  * =========================================================
  */
 
@@ -33,6 +33,7 @@ $stmt = $pdo->prepare(
         u.username,
         u.last_activity,
 
+        pm.id AS last_message_id,
         pm.message AS last_message,
         pm.created_at AS last_message_time,
 
@@ -44,28 +45,26 @@ $stmt = $pdo->prepare(
      (
          SELECT
              CASE
-                 WHEN p.sender_id = ? THEN p.receiver_id
-                 ELSE p.sender_id
+                 WHEN sender_id = ? THEN receiver_id
+                 ELSE sender_id
              END AS user_id,
 
-             MAX(p.id) AS last_message_id
+             MAX(id) AS last_message_id
 
-         FROM personal_messages p
+         FROM private_messages
 
          WHERE
-             p.sender_id = ?
-             OR p.receiver_id = ?
+             sender_id = ?
+             OR receiver_id = ?
 
-         GROUP BY user_id
+         GROUP BY
+             user_id
 
      ) last_dialog
          ON last_dialog.user_id = u.id
 
-     INNER JOIN personal_messages pmsg
-         ON pmsg.id = last_dialog.last_message_id
-
      INNER JOIN private_messages pm
-         ON pm.id = pmsg.private_message_id
+         ON pm.id = last_dialog.last_message_id
 
      LEFT JOIN
      (
@@ -73,13 +72,14 @@ $stmt = $pdo->prepare(
              sender_id,
              COUNT(*) AS unread_count
 
-         FROM personal_messages
+         FROM private_messages
 
          WHERE
              receiver_id = ?
              AND is_read = 0
 
-         GROUP BY sender_id
+         GROUP BY
+             sender_id
 
      ) unread
          ON unread.sender_id = u.id
@@ -88,7 +88,7 @@ $stmt = $pdo->prepare(
          u.is_blocked = 0
 
      ORDER BY
-         pmsg.id DESC'
+         pm.id DESC'
 );
 
 $stmt->execute(
@@ -105,7 +105,7 @@ $dialogs = $stmt->fetchAll();
 
 /*
  * =========================================================
- * ПОДГОТАВЛИВАЕМ ДАННЫЕ ДЛЯ JAVASCRIPT
+ * ФОРМИРУЕМ JSON
  * =========================================================
  */
 
@@ -117,9 +117,18 @@ foreach ($dialogs as $dialog) {
         'id' => (int) $dialog['id'],
         'username' => $dialog['username'],
         'last_activity' => $dialog['last_activity'],
-        'last_message' => $dialog['last_message'],
-        'last_message_time' => $dialog['last_message_time'],
-        'unread_count' => (int) $dialog['unread_count']
+
+        'last_message_id' =>
+            (int) $dialog['last_message_id'],
+
+        'last_message' =>
+            $dialog['last_message'],
+
+        'last_message_time' =>
+            $dialog['last_message_time'],
+
+        'unread_count' =>
+            (int) $dialog['unread_count']
     );
 }
 
