@@ -358,52 +358,48 @@ messageInput.focus();
 
 async function loadPrivateMessages(targetUserId) {
 
-    if (!targetUserId) {
-        return;
-    }
+        if (!targetUserId) {
+            return;
+        }
 
-    try {
+        try {
 
-        const response = await fetch(
-            'api/get_private.php?user_id=' +
-            encodeURIComponent(targetUserId),
-            {
-                method: 'GET',
-                credentials: 'same-origin',
-                cache: 'no-store'
+            const response = await fetch(
+                'api/get_private.php?user_id=' +
+                encodeURIComponent(targetUserId),
+                {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    cache: 'no-store'
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(
+                    'HTTP ' + response.status
+                );
             }
-        );
 
-        if (!response.ok) {
-            throw new Error(
-                'HTTP ' + response.status
+            const messages =
+                await response.json();
+
+            if (!Array.isArray(messages)) {
+                throw new Error(
+                    'Некорректный ответ сервера.'
+                );
+            }
+
+            renderInitialMessages(messages);
+
+        } catch (error) {
+
+            console.error(
+                'Private chat load error:',
+                error
             );
+
         }
-
-        const messages =
-            await response.json();
-
-        if (!Array.isArray(messages)) {
-            throw new Error(
-                'Некорректный ответ сервера.'
-            );
-        }
-
-        /*
-         * При смене собеседника
-         * показываем именно его историю.
-         */
-        renderInitialMessages(messages);
-
-    } catch (error) {
-
-        console.error(
-            'Private chat load error:',
-            error
-        );
-
     }
-}
 
 
     /*
