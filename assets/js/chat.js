@@ -19,18 +19,28 @@
             parseInt(currentUserIdElement.value, 10) || 0;
     }
 
+    /*
+     * =========================================================
+     * ПОСЛЕДНИЙ ID УЖЕ ЗАГРУЖЕННОГО СООБЩЕНИЯ
+     * =========================================================
+     */
+
     var lastMessageId = 0;
 
     var existingMessages =
         messagesBox.querySelectorAll('.message');
 
-if(existingMessages.length>0){
-    var first=existingMessages[0],
-        firstId=first.getAttribute('data-id');
+    for (var i = 0; i < existingMessages.length; i++) {
 
-    if(firstId)
-        lastMessageId=parseInt(firstId,10);
-}
+        var existingId =
+            parseInt(
+                existingMessages[i].getAttribute('data-id'),
+                10
+            ) || 0;
+
+        if (existingId > lastMessageId) {
+            lastMessageId = existingId;
+        }
     }
 
 
@@ -82,7 +92,7 @@ if(existingMessages.length>0){
 
     /*
      * =========================================================
-     * ЕДИНЫЙ ШАБЛОН ПУБЛИЧНОГО СООБЩЕНИЯ
+     * СОЗДАНИЕ HTML СООБЩЕНИЯ
      * =========================================================
      */
 
@@ -94,10 +104,17 @@ if(existingMessages.length>0){
         var senderId =
             parseInt(message.user_id, 10) || 0;
 
+        var receiverId =
+            parseInt(message.receiver_id, 10) || 0;
+
         var senderUsername =
             message.sender_username ||
             message.username ||
             'Пользователь';
+
+        var receiverUsername =
+            message.receiver_username ||
+            '';
 
         var messageTime =
             formatMessageTime(
@@ -115,8 +132,14 @@ if(existingMessages.length>0){
             classes += ' message-mine';
         }
 
+        if (
+            receiverId > 0 &&
+            receiverId === currentUserId
+        ) {
+            classes += ' message-addressed-to-me';
+        }
 
-        return (
+        var html =
             '<div class="' +
                 escapeHtml(classes) +
                 '"' +
@@ -125,6 +148,9 @@ if(existingMessages.length>0){
                 '"' +
                 ' data-user-id="' +
                 senderId +
+                '"' +
+                ' data-receiver-id="' +
+                receiverId +
                 '">' +
 
                 '<span class="message-time">' +
@@ -146,24 +172,54 @@ if(existingMessages.length>0){
 
                         escapeHtml(senderUsername) +
 
-                    '</span>' +
+                    '</span>';
 
-                    '<span>:</span>' +
+        /*
+         * Если сервер когда-нибудь вернёт приватное
+         * сообщение через этот API, сохраним его отображение.
+         */
 
-                '</span>' +
+        if (
+            receiverId > 0 &&
+            receiverUsername
+        ) {
 
-                '<span class="message-text">' +
-                    escapeHtml(messageText) +
-                '</span>' +
+            html +=
+                '<span class="message-arrow">-->>></span>' +
 
-            '</div>'
-        );
+                '<span ' +
+                    'class="message-recipient private-user-select" ' +
+                    'data-user-id="' +
+                        receiverId +
+                    '" ' +
+                    'data-username="' +
+                        escapeHtml(receiverUsername) +
+                    '" ' +
+                    'role="button" ' +
+                    'tabindex="0">' +
+
+                    escapeHtml(receiverUsername) +
+
+                '</span>';
+        }
+
+        html +=
+                '<span>:</span>' +
+            '</span>' +
+
+            '<span class="message-text">' +
+                escapeHtml(messageText) +
+            '</span>' +
+
+        '</div>';
+
+        return html;
     }
 
 
     /*
      * =========================================================
-     * ДОБАВЛЕНИЕ СООБЩЕНИЯ
+     * ДОБАВЛЕНИЕ НОВЫХ СООБЩЕНИЙ
      * =========================================================
      */
 
@@ -176,10 +232,14 @@ if(existingMessages.length>0){
             return;
         }
 
+        /*
+         * Защита от дублей.
+         */
+
         if (
             messagesBox.querySelector(
                 '.message[data-id="' +
-                messageId +
+                    messageId +
                 '"]'
             )
         ) {
@@ -188,6 +248,16 @@ if(existingMessages.length>0){
 
         var html =
             createMessageHtml(message);
+
+        /*
+         * В chat.php сообщения находятся в порядке:
+         *
+         * новое
+         * старое
+         * старое
+         *
+         * Поэтому новое сообщение вставляем в начало.
+         */
 
         messagesBox.insertAdjacentHTML(
             'afterbegin',
@@ -202,7 +272,7 @@ if(existingMessages.length>0){
 
     /*
      * =========================================================
-     * ЗАГРУЗКА ПУБЛИЧНЫХ СООБЩЕНИЙ
+     * ЗАГРУЗКА НОВЫХ ПУБЛИЧНЫХ СООБЩЕНИЙ
      * =========================================================
      */
 
@@ -245,6 +315,11 @@ if(existingMessages.length>0){
                     xhr.status < 200 ||
                     xhr.status >= 300
                 ) {
+                    console.log(
+                        'Ошибка получения сообщений. HTTP ' +
+                        xhr.status
+                    );
+
                     return;
                 }
 
@@ -262,16 +337,35 @@ if(existingMessages.length>0){
                         return;
                     }
 
-                    var wasAtBottom =
-                        messagesBox.scrollTop +
-                        messagesBox.clientHeight >=
-                        messagesBox.scrollHeight - 80;
+                    /*
+                     * Сервер отдаёт сообщения DESC:
+                     *
+                     * 105
+                     * 104
+                     * 103
+                     *
+                     * Нам нужно вставить их в обратном порядке:
+                     *
+                     * 103
+                     * 104
+                     * 105
+                     *
+                     * Тогда после insertAdjacentHTML('afterbegin')
+                     * итоговый порядок будет:
+                     *
+                     * 105
+                     * 104
+                     * 103
+                     * старые...
+                     */
 
+                    var wasAtTop =
+                        messagesBox.scrollTop <= 30;
 
                     for (
-                        var i = 0;
-                        i < data.length;
-                        i++
+                        var i = data.length - 1;
+                        i >= 0;
+                        i--
                     ) {
 
                         appendMessage(
@@ -279,22 +373,26 @@ if(existingMessages.length>0){
                         );
                     }
 
+                    /*
+                     * Если пользователь находился вверху,
+                     * оставляем его возле новых сообщений.
+                     *
+                     * Если он прокрутил чат вниз — не прыгаем.
+                     */
 
-                    if (wasAtBottom) {
-
-                        messagesBox.scrollTop =
-                            messagesBox.scrollHeight;
+                    if (wasAtTop) {
+                        messagesBox.scrollTop = 0;
                     }
 
                 } catch (error) {
 
                     console.log(
-                        'Ошибка JSON:',
-                        error
+                        'Ошибка JSON при получении сообщений:',
+                        error,
+                        xhr.responseText
                     );
                 }
             };
-
 
         xhr.onerror =
             function () {
@@ -306,14 +404,13 @@ if(existingMessages.length>0){
                 );
             };
 
-
         xhr.send();
     }
 
 
     /*
      * =========================================================
-     * ОТПРАВКА ТОЛЬКО ПУБЛИЧНОГО СООБЩЕНИЯ
+     * ОТПРАВКА ПУБЛИЧНОГО СООБЩЕНИЯ
      * =========================================================
      */
 
@@ -336,6 +433,11 @@ if(existingMessages.length>0){
                     return;
                 }
 
+                /*
+                 * Не отправляем повторно,
+                 * пока предыдущий запрос не завершился.
+                 */
+
                 if (
                     messageInput.getAttribute(
                         'data-sending'
@@ -345,8 +447,8 @@ if(existingMessages.length>0){
                 }
 
                 /*
-                 * При отправке в общий чат
-                 * получатель всегда сбрасывается.
+                 * Если это общий чат,
+                 * получатель должен быть пустым.
                  */
 
                 if (receiverInput) {
@@ -361,9 +463,14 @@ if(existingMessages.length>0){
                 var xhr =
                     new XMLHttpRequest();
 
+                /*
+                 * Используем общий send_message.php.
+                 * Он сам определяет, что это публичное сообщение.
+                 */
+
                 xhr.open(
                     'POST',
-                    'api/send_public.php',
+                    'api/send_message.php',
                     true
                 );
 
@@ -371,7 +478,6 @@ if(existingMessages.length>0){
                     'Content-Type',
                     'application/x-www-form-urlencoded; charset=UTF-8'
                 );
-
 
                 xhr.onreadystatechange =
                     function () {
@@ -386,7 +492,6 @@ if(existingMessages.length>0){
                             'data-sending'
                         );
 
-
                         if (
                             xhr.status < 200 ||
                             xhr.status >= 300
@@ -399,14 +504,12 @@ if(existingMessages.length>0){
                             return;
                         }
 
-
                         try {
 
                             var result =
                                 JSON.parse(
                                     xhr.responseText
                                 );
-
 
                             if (
                                 !result ||
@@ -423,6 +526,9 @@ if(existingMessages.length>0){
                                 return;
                             }
 
+                            /*
+                             * Очищаем поле сразу после успешной отправки.
+                             */
 
                             messageInput.value = '';
 
@@ -431,13 +537,20 @@ if(existingMessages.length>0){
 
                             messageInput.focus();
 
+                            /*
+                             * Сразу проверяем сервер,
+                             * чтобы сообщение появилось
+                             * без ожидания 3 секунд.
+                             */
+
                             loadMessages();
 
                         } catch (error) {
 
                             console.log(
-                                'Ошибка ответа send_public.php:',
-                                error
+                                'Ошибка ответа send_message.php:',
+                                error,
+                                xhr.responseText
                             );
 
                             alert(
@@ -446,12 +559,22 @@ if(existingMessages.length>0){
                         }
                     };
 
+                xhr.onerror =
+                    function () {
+
+                        messageInput.removeAttribute(
+                            'data-sending'
+                        );
+
+                        alert(
+                            'Ошибка сети. Сообщение не отправлено.'
+                        );
+                    };
 
                 xhr.send(
                     'message=' +
                     encodeURIComponent(message)
                 );
-
             },
             false
         );
@@ -460,7 +583,7 @@ if(existingMessages.length>0){
 
     /*
      * =========================================================
-     * ПЕРВИЧНАЯ ЗАГРУЗКА
+     * ПЕРВИЧНАЯ ПРОВЕРКА
      * =========================================================
      */
 
@@ -469,8 +592,10 @@ if(existingMessages.length>0){
 
     /*
      * =========================================================
-     * AJAX ОБНОВЛЕНИЕ
+     * АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ
      * =========================================================
+     *
+     * Проверяем новые сообщения каждые 3 секунды.
      */
 
     setInterval(
