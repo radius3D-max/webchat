@@ -361,84 +361,8 @@ async function loadPrivateMessages(targetUserId) {
         return;
     }
 
-    try {
-        const response = await fetch(
-            'api/get_private.php?user_id=' +
-            encodeURIComponent(targetUserId),
-            {
-                method: 'GET',
-                credentials: 'same-origin',
-                cache: 'no-store'
-            }
-        );
-
-        if (!response.ok) {
-            throw new Error(
-                'HTTP ' + response.status
-            );
-        }
-
-        const messages = await response.json();
-
-        if (!Array.isArray(messages)) {
-            throw new Error(
-                'Некорректный ответ сервера.'
-            );
-        }
-
-        privateMiniMessages.innerHTML = '';
-
-        if (!messages.length) {
-            privateMiniMessages.innerHTML =
-                '<div class="private-mini-empty">' +
-                'Пока нет приватных сообщений.' +
-                '</div>';
-
-            return;
-        }
-
-        messages.forEach(function (message) {
-            appendMessage(message);
-        });
-
-    } catch (error) {
-        console.error(
-            'Private chat load error:',
-            error
-        );
-    }
 }
-
-
-            /*
-             * =================================================
-             * ПЕРВАЯ ЗАГРУЗКА
-             * =================================================
-             *
-             * Только здесь создаём первоначальную историю.
-             * =================================================
-             */
-
-            if (firstLoad) {
-
-                renderInitialMessages(
-                    messages
-                );
-
-
-                firstLoad = false;
-
-
-                /*
-                 * Никакого scrollTop здесь нет.
-                 *
-                 * Оставляем браузеру его естественное
-                 * начальное положение.
-                 */
-
-                return;
-            }
-
+          
 
             /*
              * =================================================
