@@ -117,17 +117,16 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
 
-            privateReceiverId.value =
-                userId;
+privateReceiverId.value = userId;
 
+messageInput.placeholder =
+    'Сообщение для ' +
+    username +
+    '...';
 
-            messageInput.placeholder =
-                'Сообщение для ' +
-                username +
-                '...';
+loadPrivateMessages(userId);
 
-
-            messageInput.focus();
+messageInput.focus();
 
         },
         false
@@ -357,42 +356,58 @@ document.addEventListener('DOMContentLoaded', function () {
      * =========================================================
      */
 
-    async function loadPrivateMessages() {
+async function loadPrivateMessages(targetUserId) {
+    if (!targetUserId) {
+        return;
+    }
 
-        try {
-
-            const response =
-                await fetch(
-                    'api/get_private.php',
-                    {
-                        method: 'GET',
-                        credentials: 'same-origin',
-                        cache: 'no-store'
-                    }
-                );
-
-
-            if (!response.ok) {
-
-                throw new Error(
-                    'HTTP ' +
-                    response.status
-                );
-
+    try {
+        const response = await fetch(
+            'api/get_private.php?user_id=' +
+            encodeURIComponent(targetUserId),
+            {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-store'
             }
+        );
 
+        if (!response.ok) {
+            throw new Error(
+                'HTTP ' + response.status
+            );
+        }
 
-            const messages =
-                await response.json();
+        const messages = await response.json();
 
+        if (!Array.isArray(messages)) {
+            throw new Error(
+                'Некорректный ответ сервера.'
+            );
+        }
 
-            if (!Array.isArray(messages)) {
+        privateMiniMessages.innerHTML = '';
 
-                throw new Error(
-                    'Некорректный ответ сервера.'
-                );
+        if (!messages.length) {
+            privateMiniMessages.innerHTML =
+                '<div class="private-mini-empty">' +
+                'Пока нет приватных сообщений.' +
+                '</div>';
 
-            }
+            return;
+        }
+
+        messages.forEach(function (message) {
+            appendMessage(message);
+        });
+
+    } catch (error) {
+        console.error(
+            'Private chat load error:',
+            error
+        );
+    }
+}
 
 
             /*
@@ -597,7 +612,7 @@ document.addEventListener('DOMContentLoaded', function () {
                  * новое сообщение и добавит его один раз.
                  */
 
-                await loadPrivateMessages();
+                await loadPrivateMessages(receiverId);
 
 
             } catch (error) {
@@ -618,44 +633,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 privateSendButton.disabled =
                     false;
-
-            }
-
-        },
-        false
-    );
-
-
-    /*
-     * =========================================================
-     * ENTER
-     * =========================================================
-     */
-
-    messageInput.addEventListener(
-        'keydown',
-        function (event) {
-
-            if (
-                event.key !== 'Enter' ||
-                event.shiftKey
-            ) {
-                return;
-            }
-
-
-            const receiverId =
-                parseInt(
-                    privateReceiverId.value,
-                    10
-                );
-
-
-            if (receiverId) {
-
-                event.preventDefault();
-
-                privateSendButton.click();
 
             }
 
@@ -702,13 +679,19 @@ document.addEventListener('DOMContentLoaded', function () {
      * =========================================================
      */
 
-    setInterval(
-        function () {
+setInterval(
+    function () {
+        const receiverId =
+            parseInt(
+                privateReceiverId.value,
+                10
+            );
 
-            loadPrivateMessages();
-
-        },
-        3000
-    );
+        if (receiverId) {
+            loadPrivateMessages(receiverId);
+        }
+    },
+    3000
+);
 
 });
