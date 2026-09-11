@@ -357,69 +357,53 @@ messageInput.focus();
      */
 
 async function loadPrivateMessages(targetUserId) {
+
     if (!targetUserId) {
         return;
     }
 
-}
-          
+    try {
 
-            /*
-             * =================================================
-             * ОБЫЧНОЕ AJAX-ОБНОВЛЕНИЕ
-             * =================================================
-             *
-             * НИЧЕГО не очищаем.
-             *
-             * НИЧЕГО не перерисовываем.
-             *
-             * НИЧЕГО не меняем у существующих сообщений.
-             *
-             * Просто добавляем то, чего ещё нет.
-             * =================================================
-             */
-
-            if (!messages.length) {
-                return;
+        const response = await fetch(
+            'api/get_private.php?user_id=' +
+            encodeURIComponent(targetUserId),
+            {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-store'
             }
+        );
 
-
-            /*
-             * Убираем заглушку, если она существует.
-             */
-
-            const empty =
-                privateMiniMessages.querySelector(
-                    '.private-mini-empty'
-                );
-
-
-            if (empty) {
-                empty.remove();
-            }
-
-
-            messages.forEach(
-                function (message) {
-
-                    appendMessage(
-                        message
-                    );
-
-                }
+        if (!response.ok) {
+            throw new Error(
+                'HTTP ' + response.status
             );
-
-
-        } catch (error) {
-
-            console.error(
-                'Private chat load error:',
-                error
-            );
-
         }
 
+        const messages =
+            await response.json();
+
+        if (!Array.isArray(messages)) {
+            throw new Error(
+                'Некорректный ответ сервера.'
+            );
+        }
+
+        /*
+         * При смене собеседника
+         * показываем именно его историю.
+         */
+        renderInitialMessages(messages);
+
+    } catch (error) {
+
+        console.error(
+            'Private chat load error:',
+            error
+        );
+
     }
+}
 
 
     /*
